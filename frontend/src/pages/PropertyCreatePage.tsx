@@ -1,480 +1,311 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
+import { ArrowLeft, Send, CheckCircle2 } from 'lucide-react';
 import { propertiesApi } from '../api/properties';
 import { categoriesApi } from '../api/categories';
 import { Category } from '../types';
-import { ImageUploader } from '../components/properties/ImageUploader';
 import { Button } from '../components/common/Button';
-import { Home, MapPin, DollarSign, Ruler, BedDouble, Bath, FileText, Tag } from 'lucide-react';
+
+// Section components
+import BasicInfoSection from '../components/post-property/BasicInfoSection';
+import DetailSection from '../components/post-property/DetailSection';
+import AmenitiesSection from '../components/post-property/AmenitiesSection';
+import LocationSection from '../components/post-property/LocationSection';
+import ImageUploadSection from '../components/post-property/ImageUploadSection';
+
+// ─── Types 
+
+interface FormData {
+    title: string;
+    description: string;
+    listing_type: string;
+    property_type: string;
+    category_id: string;
+    price: string;
+    area: string;
+    bedrooms: string;
+    bathrooms: string;
+    floors: string;
+    direction: string;
+    legal_status: string;
+    furniture: string;
+    address: string;
+    city: string;
+    district: string;
+    ward: string;
+    latitude: string;
+    longitude: string;
+}
+
+const INITIAL_FORM: FormData = {
+    title: '', description: '', listing_type: '', property_type: '',
+    category_id: '', price: '', area: '', bedrooms: '', bathrooms: '',
+    floors: '', direction: '', legal_status: '', furniture: '',
+    address: '', city: '', district: '', ward: '', latitude: '', longitude: '',
+};
+
+// ─── Progress Steps ────────────────────────────────────────────────────────────
+
+const STEPS = [
+    { label: 'Cơ bản', description: 'Loại tin, tiêu đề, mô tả' },
+    { label: 'Chi tiết', description: 'Diện tích, giá, phòng' },
+    { label: 'Vị trí', description: 'Địa chỉ & bản đồ' },
+    { label: 'Tiện ích', description: 'Amenities' },
+    { label: 'Hình ảnh', description: 'Upload ảnh' },
+];
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export const PropertyCreatePage: React.FC = () => {
     const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
     const [categories, setCategories] = useState<Category[]>([]);
     const [images, setImages] = useState<File[]>([]);
-
-    const [formData, setFormData] = useState({
-        title: '',
-        description: '',
-        listing_type: '',
-        property_type: '',
-        category_id: '',
-        price: '',
-        area: '',
-        bedrooms: '',
-        bathrooms: '',
-        address: '',
-        city: '',
-        district: '',
-        ward: '',
-    });
+    const [amenities, setAmenities] = useState<string[]>([]);
+    const [currentStep, setCurrentStep] = useState(0);
+    const [formData, setFormData] = useState<FormData>(INITIAL_FORM);
 
     useEffect(() => {
-        loadCategories();
+        categoriesApi.getAll()
+            .then(res => { if (res.success && res.data) setCategories(res.data); })
+            .catch(() => toast.error('Không thể tải danh mục'));
     }, []);
 
-    const loadCategories = async () => {
-        try {
-            const response = await categoriesApi.getAll();
-            if (response.success && response.data) {
-                setCategories(response.data);
-            }
-        } catch (error) {
-            console.error('Failed to load categories:', error);
-            toast.error('Không thể tải danh mục');
-        }
+    // ── Unified field updater 
+    const handleChange = (field: string, value: string) => {
+        setFormData(prev => ({ ...prev, [field]: value }));
     };
 
-    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-        const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
+    // ── Amenity toggle ─────────────────────────────────────────────────────────
+    const toggleAmenity = (id: string) => {
+        setAmenities(prev =>
+            prev.includes(id) ? prev.filter(a => a !== id) : [...prev, id]
+        );
     };
 
-    const validateForm = (): boolean => {
-        if (!formData.title.trim()) {
-            toast.error('Vui lòng nhập tiêu đề');
-            return false;
-        }
-        if (!formData.description.trim()) {
-            toast.error('Vui lòng nhập mô tả');
-            return false;
-        }
-        if (!formData.listing_type) {
-            toast.error('Vui lòng chọn loại tin');
-            return false;
-        }
-        if (!formData.property_type) {
-            toast.error('Vui lòng chọn loại bất động sản');
-            return false;
-        }
-        if (!formData.category_id) {
-            toast.error('Vui lòng chọn danh mục');
-            return false;
-        }
-        if (!formData.price || parseFloat(formData.price) <= 0) {
-            toast.error('Vui lòng nhập giá hợp lệ');
-            return false;
-        }
-        if (!formData.area || parseFloat(formData.area) <= 0) {
-            toast.error('Vui lòng nhập diện tích hợp lệ');
-            return false;
-        }
-        if (!formData.address.trim()) {
-            toast.error('Vui lòng nhập địa chỉ');
-            return false;
-        }
-        if (!formData.city.trim()) {
-            toast.error('Vui lòng nhập thành phố');
-            return false;
-        }
-        if (images.length === 0) {
-            toast.error('Vui lòng upload ít nhất 1 ảnh');
-            return false;
-        }
+    // ── Validation ─────────────────────────────────────────────────────────────
+    const validate = (): boolean => {
+        if (!formData.title.trim()) { toast.error('Vui lòng nhập tiêu đề'); return false; }
+        if (!formData.description.trim()) { toast.error('Vui lòng nhập mô tả'); return false; }
+        if (!formData.listing_type) { toast.error('Vui lòng chọn loại tin'); return false; }
+        if (!formData.property_type) { toast.error('Vui lòng chọn loại bất động sản'); return false; }
+        if (!formData.category_id) { toast.error('Vui lòng chọn danh mục'); return false; }
+        if (!formData.price || parseFloat(formData.price) <= 0) { toast.error('Vui lòng nhập giá hợp lệ'); return false; }
+        if (!formData.area || parseFloat(formData.area) <= 0) { toast.error('Vui lòng nhập diện tích'); return false; }
+        if (!formData.address.trim()) { toast.error('Vui lòng nhập địa chỉ'); return false; }
+        if (!formData.city.trim()) { toast.error('Vui lòng nhập thành phố'); return false; }
+        if (images.length === 0) { toast.error('Vui lòng upload ít nhất 1 ảnh'); return false; }
         return true;
     };
 
+    // ── Submit ─────────────────────────────────────────────────────────────────
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-
-        if (!validateForm()) return;
+        if (!validate()) return;
 
         setLoading(true);
         try {
-            // Create property
-            const propertyData = {
+            const payload = {
                 title: formData.title,
                 description: formData.description,
                 listing_type: formData.listing_type as 'sale' | 'rent',
-                property_type: formData.property_type as 'apartment' | 'house' | 'villa' | 'land' | 'office' | 'warehouse' | 'shophouse',
+                property_type: formData.property_type as
+                    'apartment' | 'house' | 'villa' | 'land' | 'office' | 'warehouse' | 'shophouse',
                 category_id: formData.category_id,
                 price: parseFloat(formData.price),
                 area: parseFloat(formData.area),
                 bedrooms: formData.bedrooms ? parseInt(formData.bedrooms) : undefined,
                 bathrooms: formData.bathrooms ? parseInt(formData.bathrooms) : undefined,
+                floors: formData.floors ? parseInt(formData.floors) : undefined,
+                direction: (formData.direction || undefined) as any,
+                legal_status: (formData.legal_status || undefined) as any,
+                furniture: (formData.furniture || undefined) as any,
+                amenities: amenities.length > 0 ? amenities : undefined,
                 address: formData.address,
                 city: formData.city,
                 district: formData.district || undefined,
                 ward: formData.ward || undefined,
+                latitude: formData.latitude ? parseFloat(formData.latitude) : undefined,
+                longitude: formData.longitude ? parseFloat(formData.longitude) : undefined,
                 status: 'pending' as const,
             };
 
-            const response = await propertiesApi.create(propertyData);
-
-            if (response.success && response.data) {
-                // Upload images
+            const res = await propertiesApi.create(payload);
+            if (res.success && res.data) {
                 if (images.length > 0) {
-                    await propertiesApi.uploadImages(response.data.id, images);
+                    await propertiesApi.uploadImages(res.data.id, images);
                 }
-
-                toast.success('Đăng tin thành công! Tin của bạn đang chờ admin duyệt.');
+                toast.success('Đăng tin thành công! Đang chờ admin duyệt.');
                 navigate('/my-properties');
             }
-        } catch (error: any) {
-            console.error('Failed to create property:', error);
-            toast.error(error.response?.data?.message || 'Không thể đăng tin');
+        } catch (err: any) {
+            toast.error(err.response?.data?.message || 'Không thể đăng tin');
         } finally {
             setLoading(false);
         }
     };
 
+    // ── Render ─────────────────────────────────────────────────────────────────
     return (
-        <div className="min-h-screen bg-gray-50 py-12">
-            <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-                {/* Header */}
-                <div className="mb-8">
-                    <h1 className="text-3xl font-bold text-gray-900 mb-2">Đăng tin bất động sản</h1>
-                    <p className="text-gray-600">
-                        Điền đầy đủ thông tin để đăng tin. Tin của bạn sẽ được admin duyệt trước khi hiển thị công khai.
+        <div className="min-h-screen py-10 bg-gradient-to-br from-gray-50 to-gray-100">
+            <div className="max-w-4xl px-4 mx-auto sm:px-6 lg:px-8">
+
+                {/* ── Header ── */}
+                <div className="flex items-center gap-4 mb-8">
+                    <button
+                        type="button"
+                        onClick={() => navigate(-1)}
+                        className="flex items-center justify-center w-10 h-10 transition-colors bg-white border border-gray-200 rounded-full shadow-sm hover:bg-gray-50"
+                    >
+                        <ArrowLeft className="w-5 h-5" />
+                    </button>
+                    <div>
+                        <h1 className="text-2xl font-bold text-gray-900">Đăng tin bất động sản</h1>
+                        <p className="text-sm text-gray-500">
+                            Điền đầy đủ thông tin để tin đăng được duyệt nhanh chóng
+                        </p>
+                    </div>
+                </div>
+
+                {/* ── Progress Steps ── */}
+                <div className="p-4 mb-8 bg-white border border-gray-200 shadow-sm rounded-2xl">
+                    <div className="flex items-center justify-between">
+                        {STEPS.map((step, i) => {
+                            const done = i < currentStep;
+                            const active = i === currentStep;
+                            return (
+                                <React.Fragment key={i}>
+                                    <button
+                                        type="button"
+                                        onClick={() => setCurrentStep(i)}
+                                        className="flex flex-col items-center gap-1 group"
+                                    >
+                                        <div className={`flex items-center justify-center w-9 h-9 rounded-full
+                                                         font-bold text-sm transition-all
+                                            ${done
+                                                ? 'bg-green-500 text-white shadow-md'
+                                                : active
+                                                    ? 'bg-primary-600 text-white shadow-md ring-4 ring-primary-100'
+                                                    : 'bg-gray-100 text-gray-400 group-hover:bg-gray-200'
+                                            }`}>
+                                            {done ? <CheckCircle2 className="w-4 h-4" /> : i + 1}
+                                        </div>
+                                        <span className={`hidden md:block text-xs font-medium transition-colors
+                                            ${active ? 'text-primary-600' : done ? 'text-green-600' : 'text-gray-400'}`}>
+                                            {step.label}
+                                        </span>
+                                    </button>
+                                    {i < STEPS.length - 1 && (
+                                        <div className={`flex-1 h-0.5 mx-2 rounded-full transition-colors
+                                            ${i < currentStep ? 'bg-green-400' : 'bg-gray-200'}`} />
+                                    )}
+                                </React.Fragment>
+                            );
+                        })}
+                    </div>
+                    <p className="mt-3 text-xs text-center text-gray-400">
+                        Bước {currentStep + 1}/5 — {STEPS[currentStep].description}
                     </p>
                 </div>
 
-                {/* Form */}
-                <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-md p-8 space-y-8">
-                    {/* Basic Information */}
-                    <div className="space-y-6">
-                        <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
-                            <Home className="w-5 h-5" />
-                            Thông tin cơ bản
-                        </h2>
+                {/* ── Form ── */}
+                <form onSubmit={handleSubmit} className="space-y-6">
 
-                        {/* Title */}
-                        <div>
-                            <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-2">
-                                Tiêu đề <span className="text-red-500">*</span>
-                            </label>
-                            <input
-                                type="text"
-                                id="title"
-                                name="title"
-                                value={formData.title}
-                                onChange={handleInputChange}
-                                placeholder="VD: Bán căn hộ 2 phòng ngủ view biển"
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                                required
-                            />
-                        </div>
-
-                        {/* Listing Type */}
-                        <div>
-                            <label htmlFor="listing_type" className="block text-sm font-medium text-gray-700 mb-2">
-                                Loại tin <span className="text-red-500">*</span>
-                            </label>
-                            <select
-                                id="listing_type"
-                                name="listing_type"
-                                value={formData.listing_type}
-                                onChange={handleInputChange}
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                                required
-                            >
-                                <option value="">Chọn loại tin</option>
-                                <option value="sale">Bán</option>
-                                <option value="rent">Cho thuê</option>
-                            </select>
-                        </div>
-
-                        {/* Property Type */}
-                        <div>
-                            <label htmlFor="property_type" className="block text-sm font-medium text-gray-700 mb-2">
-                                Loại bất động sản <span className="text-red-500">*</span>
-                            </label>
-                            <select
-                                id="property_type"
-                                name="property_type"
-                                value={formData.property_type}
-                                onChange={handleInputChange}
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                                required
-                            >
-                                <option value="">Chọn loại bất động sản</option>
-                                <option value="apartment">Chung cư</option>
-                                <option value="house">Nhà riêng</option>
-                                <option value="villa">Biệt thự</option>
-                                <option value="land">Đất nền</option>
-                                <option value="office">Văn phòng</option>
-                                <option value="warehouse">Kho xưởng</option>
-                                <option value="shophouse">Shophouse</option>
-                            </select>
-                        </div>
-
-                        {/* Category */}
-                        <div>
-                            <label htmlFor="category_id" className="block text-sm font-medium text-gray-700 mb-2">
-                                Danh mục <span className="text-red-500">*</span>
-                            </label>
-                            <div className="relative">
-                                <Tag className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                                <select
-                                    id="category_id"
-                                    name="category_id"
-                                    value={formData.category_id}
-                                    onChange={handleInputChange}
-                                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent appearance-none"
-                                    required
-                                >
-                                    <option value="">Chọn danh mục</option>
-                                    {categories.map(cat => (
-                                        <option key={cat.id} value={cat.id}>
-                                            {cat.name}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                        </div>
-
-                        {/* Description */}
-                        <div>
-                            <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-2">
-                                Mô tả chi tiết <span className="text-red-500">*</span>
-                            </label>
-                            <textarea
-                                id="description"
-                                name="description"
-                                value={formData.description}
-                                onChange={handleInputChange}
-                                rows={6}
-                                placeholder="Mô tả chi tiết về bất động sản: vị trí, tiện ích, nội thất..."
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                                required
-                            />
-                        </div>
-                    </div>
-
-                    {/* Property Details */}
-                    <div className="space-y-6">
-                        <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
-                            <FileText className="w-5 h-5" />
-                            Chi tiết bất động sản
-                        </h2>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            {/* Price */}
-                            <div>
-                                <label htmlFor="price" className="block text-sm font-medium text-gray-700 mb-2">
-                                    Giá (VNĐ) <span className="text-red-500">*</span>
-                                </label>
-                                <div className="relative">
-                                    <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                                    <input
-                                        type="number"
-                                        id="price"
-                                        name="price"
-                                        value={formData.price}
-                                        onChange={handleInputChange}
-                                        placeholder="5000000000"
-                                        min="0"
-                                        step="1000000"
-                                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                                        required
-                                    />
-                                </div>
-                            </div>
-
-                            {/* Area */}
-                            <div>
-                                <label htmlFor="area" className="block text-sm font-medium text-gray-700 mb-2">
-                                    Diện tích (m²) <span className="text-red-500">*</span>
-                                </label>
-                                <div className="relative">
-                                    <Ruler className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                                    <input
-                                        type="number"
-                                        id="area"
-                                        name="area"
-                                        value={formData.area}
-                                        onChange={handleInputChange}
-                                        placeholder="80"
-                                        min="0"
-                                        step="0.1"
-                                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                                        required
-                                    />
-                                </div>
-                            </div>
-
-                            {/* Bedrooms */}
-                            <div>
-                                <label htmlFor="bedrooms" className="block text-sm font-medium text-gray-700 mb-2">
-                                    Số phòng ngủ
-                                </label>
-                                <div className="relative">
-                                    <BedDouble className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                                    <input
-                                        type="number"
-                                        id="bedrooms"
-                                        name="bedrooms"
-                                        value={formData.bedrooms}
-                                        onChange={handleInputChange}
-                                        placeholder="2"
-                                        min="0"
-                                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                                    />
-                                </div>
-                            </div>
-
-                            {/* Bathrooms */}
-                            <div>
-                                <label htmlFor="bathrooms" className="block text-sm font-medium text-gray-700 mb-2">
-                                    Số phòng tắm
-                                </label>
-                                <div className="relative">
-                                    <Bath className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                                    <input
-                                        type="number"
-                                        id="bathrooms"
-                                        name="bathrooms"
-                                        value={formData.bathrooms}
-                                        onChange={handleInputChange}
-                                        placeholder="2"
-                                        min="0"
-                                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                                    />
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Location */}
-                    <div className="space-y-6">
-                        <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
-                            <MapPin className="w-5 h-5" />
-                            Vị trí
-                        </h2>
-
-                        <div className="space-y-4">
-                            {/* Address */}
-                            <div>
-                                <label htmlFor="address" className="block text-sm font-medium text-gray-700 mb-2">
-                                    Địa chỉ <span className="text-red-500">*</span>
-                                </label>
-                                <input
-                                    type="text"
-                                    id="address"
-                                    name="address"
-                                    value={formData.address}
-                                    onChange={handleInputChange}
-                                    placeholder="123 Đường ABC"
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                                    required
-                                />
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                {/* City */}
-                                <div>
-                                    <label htmlFor="city" className="block text-sm font-medium text-gray-700 mb-2">
-                                        Thành phố <span className="text-red-500">*</span>
-                                    </label>
-                                    <input
-                                        type="text"
-                                        id="city"
-                                        name="city"
-                                        value={formData.city}
-                                        onChange={handleInputChange}
-                                        placeholder="Hà Nội"
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                                        required
-                                    />
-                                </div>
-
-                                {/* District */}
-                                <div>
-                                    <label htmlFor="district" className="block text-sm font-medium text-gray-700 mb-2">
-                                        Quận/Huyện
-                                    </label>
-                                    <input
-                                        type="text"
-                                        id="district"
-                                        name="district"
-                                        value={formData.district}
-                                        onChange={handleInputChange}
-                                        placeholder="Cầu Giấy"
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                                    />
-                                </div>
-
-                                {/* Ward */}
-                                <div>
-                                    <label htmlFor="ward" className="block text-sm font-medium text-gray-700 mb-2">
-                                        Phường/Xã
-                                    </label>
-                                    <input
-                                        type="text"
-                                        id="ward"
-                                        name="ward"
-                                        value={formData.ward}
-                                        onChange={handleInputChange}
-                                        placeholder="Dịch Vọng"
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                                    />
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Images */}
-                    <div className="space-y-6">
-                        <h2 className="text-xl font-semibold text-gray-900">
-                            Hình ảnh <span className="text-red-500">*</span>
-                        </h2>
-                        <ImageUploader
-                            images={images}
-                            onImagesChange={setImages}
-                            maxImages={10}
-                            maxSizeMB={5}
+                    {/* Step 0: Basic Info */}
+                    {currentStep === 0 && (
+                        <BasicInfoSection
+                            title={formData.title}
+                            listingType={formData.listing_type}
+                            propertyType={formData.property_type}
+                            categoryId={formData.category_id}
+                            description={formData.description}
+                            categories={categories}
+                            onChange={handleChange}
                         />
+                    )}
+
+                    {/* Step 1: Detail (price, area, rooms) */}
+                    {currentStep === 1 && (
+                        <DetailSection
+                            price={formData.price}
+                            area={formData.area}
+                            bedrooms={formData.bedrooms}
+                            bathrooms={formData.bathrooms}
+                            floors={formData.floors}
+                            direction={formData.direction}
+                            legalStatus={formData.legal_status}
+                            furniture={formData.furniture}
+                            onChange={handleChange}
+                        />
+                    )}
+
+                    {/* Step 2: Location + Map — must use && not 'hidden' so
+                        MapContainer always mounts with real pixel dimensions.
+                        display:none → Leaflet gets 0×0 → NaN coordinates → crash */}
+                    {currentStep === 2 && (
+                        <LocationSection
+                            address={formData.address}
+                            city={formData.city}
+                            district={formData.district}
+                            ward={formData.ward}
+                            latitude={formData.latitude}
+                            longitude={formData.longitude}
+                            onChange={handleChange}
+                        />
+                    )}
+
+                    {/* Step 3: Amenities */}
+                    {currentStep === 3 && (
+                        <AmenitiesSection amenities={amenities} onToggle={toggleAmenity} />
+                    )}
+
+                    {/* Step 4: Images */}
+                    {currentStep === 4 && (
+                        <ImageUploadSection images={images} onImagesChange={setImages} />
+                    )}
+
+                    {/* ── Navigation ── */}
+                    <div className="flex gap-3 pt-2">
+                        {currentStep > 0 && (
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => setCurrentStep(s => s - 1)}
+                                disabled={loading}
+                                className="px-6"
+                            >
+                                ← Quay lại
+                            </Button>
+                        )}
+
+                        {currentStep < STEPS.length - 1 ? (
+                            <Button
+                                type="button"
+                                variant="primary"
+                                onClick={() => setCurrentStep(s => s + 1)}
+                                className="flex-1"
+                            >
+                                Tiếp theo →
+                            </Button>
+                        ) : (
+                            <Button
+                                type="submit"
+                                variant="primary"
+                                isLoading={loading}
+                                disabled={loading}
+                                className="flex-1 gap-2"
+                            >
+                                <Send className="w-4 h-4" />
+                                {loading ? 'Đang đăng tin...' : 'Đăng tin'}
+                            </Button>
+                        )}
                     </div>
 
-                    {/* Submit Buttons */}
-                    <div className="flex gap-4 pt-6 border-t">
-                        <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => navigate('/properties')}
-                            disabled={loading}
-                            className="flex-1"
-                        >
-                            Hủy
-                        </Button>
-                        <Button
-                            type="submit"
-                            variant="primary"
-                            isLoading={loading}
-                            disabled={loading}
-                            className="flex-1"
-                        >
-                            {loading ? 'Đang đăng tin...' : 'Đăng tin'}
-                        </Button>
-                    </div>
-
-                    {/* Info Note */}
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                        <p className="text-sm text-blue-800">
-                            <strong>Lưu ý:</strong> Tin đăng của bạn sẽ ở trạng thái "Chờ duyệt" và được admin xem xét trước khi hiển thị công khai.
-                            Bạn có thể theo dõi trạng thái tin đăng tại trang "Tin của tôi".
-                        </p>
+                    {/* Info note */}
+                    <div className="p-4 text-sm text-blue-800 border border-blue-200 bg-blue-50 rounded-xl">
+                        <strong>💡 Lưu ý:</strong> Tin đăng của bạn sẽ ở trạng thái &ldquo;Chờ duyệt&rdquo; và được
+                        admin xem xét trước khi hiển thị công khai. Bạn có thể theo dõi tại trang &ldquo;Tin của tôi&rdquo;.
                     </div>
                 </form>
             </div>

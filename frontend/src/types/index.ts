@@ -28,13 +28,16 @@ export interface Property {
   city: string;
   district?: string;
   ward?: string;
+  latitude?: number;
+  longitude?: number;
   bedrooms?: number;
   bathrooms?: number;
   floors?: number;
-  direction?: string;
+  direction?: 'east' | 'west' | 'south' | 'north' | 'northeast' | 'northwest' | 'southeast' | 'southwest';
+  legal_status?: 'red_book' | 'pink_book' | 'waiting' | 'other';
   furniture?: 'full' | 'partial' | 'none';
+  amenities?: string[];
   view_count: number;
-  views?: number;
   is_featured: boolean;
   created_at: string;
   rejection_reason?: string;
@@ -102,18 +105,41 @@ export interface ApiResponse<T = any> {
 }
 
 export interface PropertyFilters {
+  page?: number;
+  limit?: number;
   listing_type?: 'sale' | 'rent';
   property_type?: string;
   city?: string;
   district?: string;
+  search?: string;
+  sort?: string;
   min_price?: number;
   max_price?: number;
   min_area?: number;
   max_area?: number;
   bedrooms?: number;
   bathrooms?: number;
-  search?: string;
-  page?: number;
-  limit?: number;
-  sort?: string;
+}
+
+export interface Message {
+  id: string;
+  sender_id: string;
+  receiver_id: string;
+  property_id: string | null;
+  message: string;
+  image_url: string | null;
+  is_read: boolean;
+  created_at: string;
+}
+
+export interface Conversation {
+  partner_id: string;
+  full_name: string;
+  avatar_url: string | null;
+  last_message: string;
+  last_message_at: string;
+  unread_count: number;
+  property_id: string | null;
+  property_title: string | null;
+  property_image: string | null;
 }

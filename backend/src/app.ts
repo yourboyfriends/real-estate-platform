@@ -5,9 +5,9 @@ import { notFound, errorMiddleware } from './utils/errorHandler';
 
 const app: Application = express();
 
-// ============================================
+
 // MIDDLEWARES
-// ============================================
+
 
 // Body parser
 app.use(express.json({ limit: '10mb' }));
@@ -15,10 +15,14 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // CORS configuration
 const corsOptions = {
-  origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
-  credentials: true,
-  optionsSuccessStatus: 200
+  origin: [
+    'http://localhost:5173',
+    'http://localhost:5174',
+    'http://localhost:3000'
+  ],
+  credentials: true
 };
+
 app.use(cors(corsOptions));
 
 // Request logging (development)

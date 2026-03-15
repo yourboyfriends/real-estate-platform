@@ -41,3 +41,46 @@ export const AREA_RANGES = [
   { min: 80, max: 100, label: '80 - 100m²' },
   { min: 100, max: Infinity, label: 'Trên 100m²' }
 ];
+
+export const AMENITIES_OPTIONS = [
+  { id: 'pool', label: 'Hồ bơi', icon: '🏊' },
+  { id: 'gym', label: 'Phòng gym', icon: '💪' },
+  { id: 'parking', label: 'Bãi đậu xe', icon: '🚗' },
+  { id: 'security', label: 'An ninh 24/7', icon: '🔒' },
+  { id: 'elevator', label: 'Thang máy', icon: '🛗' },
+  { id: 'garden', label: 'Sân vườn', icon: '🌳' },
+  { id: 'balcony', label: 'Ban công', icon: '🏡' },
+  { id: 'terrace', label: 'Sân thượng', icon: '🏠' },
+  { id: 'bbq', label: 'Khu BBQ', icon: '🍖' },
+  { id: 'playground', label: 'Sân chơi trẻ em', icon: '🎪' },
+  { id: 'sauna', label: 'Phòng xông hơi', icon: '♨️' },
+  { id: 'tennis', label: 'Sân tennis', icon: '🎾' },
+  { id: 'basketball', label: 'Sân bóng rổ', icon: '🏀' },
+  { id: 'minimart', label: 'Siêu thị mini', icon: '🏪' },
+  { id: 'restaurant', label: 'Nhà hàng', icon: '🍽️' },
+  { id: 'cafe', label: 'Quán cafe', icon: '☕' },
+];
+
+export const DIRECTION_LABELS = {
+  east: 'Đông',
+  west: 'Tây',
+  south: 'Nam',
+  north: 'Bắc',
+  northeast: 'Đông Bắc',
+  northwest: 'Tây Bắc',
+  southeast: 'Đông Nam',
+  southwest: 'Tây Nam',
+};
+
+export const LEGAL_STATUS_LABELS = {
+  red_book: 'Sổ đỏ',
+  pink_book: 'Sổ hồng',
+  waiting: 'Đang chờ sổ',
+  other: 'Khác',
+};
+
+export const FURNITURE_LABELS = {
+  full: 'Đầy đủ nội thất',
+  partial: 'Một phần',
+  none: 'Không nội thất',
+};

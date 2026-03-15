@@ -124,3 +124,22 @@
     overflow: hidden;
   }
 }
+
+/* ─── Leaflet z-index fix ──────────────────────────────────────────────────────
+   Ngăn Leaflet tiles/controls tràn lên trên navbar của trang.
+   Navbar dùng z-index 50 (Tailwind: z-50), Leaflet mặc định dùng 400-1000.
+   Giải pháp: gắn lại max z-index của Leaflet control xuống 400, tile xuống 1.
+   isolation: isolate trên parent đã xử lý tiles, đây là safety net.
+─────────────────────────────────────────────────────────────────────────────── */
+.leaflet-top,
+.leaflet-bottom {
+  z-index: 400 !important;
+}
+
+.leaflet-pane {
+  z-index: 1 !important;
+}
+
+.leaflet-map-pane {
+  z-index: auto !important;
+}

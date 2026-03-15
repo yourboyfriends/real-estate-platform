@@ -1,8 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/authcontexts';
 import { propertiesApi } from '../api/properties';
 import { Property } from '../types';
 import { Button } from '../components/common/Button';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Badge } from '../components/ui/badge';
+import { Separator } from '../components/ui/separator';
+import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
 import {
     MapPin,
     Bed,
@@ -11,22 +16,35 @@ import {
     Home,
     Eye,
     Phone,
-    Mail,
     Share2,
     Heart,
-    ArrowLeft,
     ChevronLeft,
     ChevronRight,
+    Calendar,
+    Compass,
+    FileText,
+    Sofa,
+    MessageCircle,
+    CalendarDays,
 } from 'lucide-react';
 import { formatPrice, formatArea } from '../utils/helper';
+import { AMENITIES_OPTIONS, DIRECTION_LABELS, LEGAL_STATUS_LABELS, FURNITURE_LABELS } from '../utils/constants';
 import toast from 'react-hot-toast';
+
+
+// Lazy load map (Leaflet không hỗ trợ SSR)
+const NearbyAmenitiesMap = lazy(() => import('../components/map/NearbyAmenitiesMap'));
+
 
 export const PropertyDetailPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
+    const { user } = useAuth();
     const [property, setProperty] = useState<Property | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
+    const [nearbyProperties, setNearbyProperties] = useState<Property[]>([]);
+
 
     useEffect(() => {
         if (id) {
@@ -40,12 +58,32 @@ export const PropertyDetailPage: React.FC = () => {
             const response = await propertiesApi.getById(propertyId);
             if (response.success && response.data) {
                 setProperty(response.data);
+                // Tải BĐS xung quanh
+                loadNearbyProperties(response.data);
             }
         } catch (error) {
             console.error('Failed to load property:', error);
             toast.error('Không thể tải thông tin bất động sản');
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    const loadNearbyProperties = async (prop: Property) => {
+        try {
+            const response = await propertiesApi.getNearby(
+                prop.latitude,
+                prop.longitude,
+                prop.address,
+                prop.city,
+                prop.id
+            );
+            if (response.success && response.data) {
+                setNearbyProperties(response.data);
+            }
+        } catch (error) {
+            // Không hiển thị lỗi, chỉ không có BĐS lân cận
+            console.warn('Could not load nearby properties:', error);
         }
     };
 
@@ -112,271 +150,261 @@ export const PropertyDetailPage: React.FC = () => {
     const images = property.images || [];
     const currentImage = images[currentImageIndex];
 
-    return (
-        <div className="min-h-screen bg-gray-50 py-8">
-            <div className="container mx-auto px-4">
-                {/* Back Button */}
-                <button
-                    onClick={() => navigate(-1)}
-                    className="flex items-center text-gray-600 hover:text-primary-600 mb-6"
-                >
-                    <ArrowLeft className="w-5 h-5 mr-2" />
-                    Quay lại
-                </button>
+    // Map amenities IDs to labels with icons
+    const propertyAmenities = property.amenities?.map(amenityId =>
+        AMENITIES_OPTIONS.find(opt => opt.id === amenityId)
+    ).filter(Boolean) || [];
 
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+    return (
+        <div className="min-h-screen bg-gray-50 py-6">
+            <div className="container mx-auto px-4">
+                {/* Image Gallery */}
+                <div className="relative mb-6 overflow-hidden rounded-lg">
+                    <div className="aspect-video bg-gray-200">
+                        {images.length > 0 ? (
+                            <img
+                                src={currentImage?.url}
+                                alt={property.title}
+                                className="h-full w-full object-cover"
+                            />
+                        ) : (
+                            <div className="w-full h-full flex items-center justify-center">
+                                <Home className="w-24 h-24 text-gray-400" />
+                            </div>
+                        )}
+                    </div>
+                    {images.length > 1 && (
+                        <>
+                            <button
+                                onClick={handlePrevImage}
+                                className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white p-2 rounded-full shadow-lg transition-colors"
+                            >
+                                <ChevronLeft className="h-6 w-6" />
+                            </button>
+                            <button
+                                onClick={handleNextImage}
+                                className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white p-2 rounded-full shadow-lg transition-colors"
+                            >
+                                <ChevronRight className="h-6 w-6" />
+                            </button>
+                            <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 gap-2">
+                                {images.map((_, index) => (
+                                    <button
+                                        key={index}
+                                        className={`h-2 w-2 rounded-full transition-colors ${index === currentImageIndex ? 'bg-primary-600' : 'bg-white/50'
+                                            }`}
+                                        onClick={() => setCurrentImageIndex(index)}
+                                    />
+                                ))}
+                            </div>
+                        </>
+                    )}
+                </div>
+
+                <div className="grid gap-6 lg:grid-cols-3">
                     {/* Main Content */}
                     <div className="lg:col-span-2">
-                        {/* Image Gallery */}
-                        <div className="bg-white rounded-lg shadow-md overflow-hidden mb-6">
-                            <div className="relative h-96 bg-gray-200">
-                                {images.length > 0 ? (
-                                    <>
-                                        <img
-                                            src={currentImage?.url}
-                                            alt={property.title}
-                                            className="w-full h-full object-cover"
-                                        />
-                                        {images.length > 1 && (
-                                            <>
-                                                <button
-                                                    onClick={handlePrevImage}
-                                                    className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-75"
-                                                >
-                                                    <ChevronLeft className="w-6 h-6" />
-                                                </button>
-                                                <button
-                                                    onClick={handleNextImage}
-                                                    className="absolute right-4 top-1/2 transform -translate-y-1/2 bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-75"
-                                                >
-                                                    <ChevronRight className="w-6 h-6" />
-                                                </button>
-                                                <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-black bg-opacity-50 text-white px-3 py-1 rounded-full text-sm">
-                                                    {currentImageIndex + 1} / {images.length}
-                                                </div>
-                                            </>
-                                        )}
-                                    </>
-                                ) : (
-                                    <div className="w-full h-full flex items-center justify-center">
-                                        <Home className="w-24 h-24 text-gray-400" />
-                                    </div>
-                                )}
+                        <div className="mb-4 flex items-start justify-between">
+                            <div>
+                                <h1 className="mb-2 text-2xl font-bold">{property.title}</h1>
+                                <p className="flex items-center text-gray-600">
+                                    <MapPin className="mr-1 h-4 w-4" />
+                                    {property.address}
+                                </p>
                             </div>
-
-                            {/* Thumbnail Gallery */}
-                            {images.length > 1 && (
-                                <div className="p-4 grid grid-cols-6 gap-2">
-                                    {images.slice(0, 6).map((image, index) => (
-                                        <button
-                                            key={image.id}
-                                            onClick={() => setCurrentImageIndex(index)}
-                                            className={`aspect-square rounded overflow-hidden ${index === currentImageIndex ? 'ring-2 ring-primary-600' : ''
-                                                }`}
-                                        >
-                                            <img
-                                                src={image.url}
-                                                alt={`Thumbnail ${index + 1}`}
-                                                className="w-full h-full object-cover"
-                                            />
-                                        </button>
-                                    ))}
-                                </div>
-                            )}
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={handleShare}
+                                    className="p-2 text-gray-600 hover:text-primary-600 hover:bg-gray-100 rounded-lg"
+                                >
+                                    <Share2 className="h-5 w-5" />
+                                </button>
+                                <button className="p-2 text-gray-600 hover:text-red-600 hover:bg-gray-100 rounded-lg">
+                                    <Heart className="h-5 w-5" />
+                                </button>
+                            </div>
                         </div>
 
-                        {/* Property Info */}
-                        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-                            {/* Title and Price */}
-                            <div className="mb-6">
-                                <div className="flex items-start justify-between mb-2">
-                                    <h1 className="text-3xl font-bold text-gray-900 flex-1">
-                                        {property.title}
-                                    </h1>
-                                    <div className="flex gap-2 ml-4">
-                                        <button
-                                            onClick={handleShare}
-                                            className="p-2 text-gray-600 hover:text-primary-600 hover:bg-gray-100 rounded-lg"
-                                        >
-                                            <Share2 className="w-5 h-5" />
-                                        </button>
-                                        <button className="p-2 text-gray-600 hover:text-red-600 hover:bg-gray-100 rounded-lg">
-                                            <Heart className="w-5 h-5" />
-                                        </button>
-                                    </div>
-                                </div>
-                                <div className="flex items-center text-gray-600 mb-4">
-                                    <MapPin className="w-5 h-5 mr-2" />
-                                    <span>{property.address}, {property.district && `${property.district}, `}{property.city}</span>
-                                </div>
-                                <div className="text-3xl font-bold text-primary-600">
-                                    {formatPrice(property.price)}
-                                </div>
+                        <div className="mb-6 flex flex-wrap items-center gap-4">
+                            <span className="text-3xl font-bold text-primary-600">
+                                {formatPrice(property.price)}
+                            </span>
+                            <Badge variant="secondary">{formatArea(property.area)}</Badge>
+                            <div className="flex items-center gap-1 text-gray-600">
+                                <Eye className="h-4 w-4" />
+                                {property.view_count} lượt xem
                             </div>
+                            <div className="flex items-center gap-1 text-gray-600">
+                                <Calendar className="h-4 w-4" />
+                                Đăng ngày {new Date(property.created_at).toLocaleDateString('vi-VN')}
+                            </div>
+                        </div>
 
-                            {/* Quick Stats */}
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 pb-6 border-b">
-                                <div className="text-center">
-                                    <div className="flex items-center justify-center mb-2">
-                                        <Maximize className="w-6 h-6 text-primary-600" />
-                                    </div>
-                                    <div className="text-sm text-gray-600">Diện tích</div>
-                                    <div className="font-semibold">{formatArea(property.area)}</div>
-                                </div>
-                                {property.bedrooms && (
-                                    <div className="text-center">
-                                        <div className="flex items-center justify-center mb-2">
-                                            <Bed className="w-6 h-6 text-primary-600" />
+                        <Separator className="my-6" />
+
+                        {/* Property Details */}
+                        <Card className="mb-6">
+                            <CardHeader>
+                                <CardTitle>Thông tin chi tiết</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
+                                    {property.bedrooms != null && (
+                                        <div className="flex items-center gap-2">
+                                            <Bed className="h-5 w-5 text-gray-500" />
+                                            <span>{property.bedrooms} phòng ngủ</span>
                                         </div>
-                                        <div className="text-sm text-gray-600">Phòng ngủ</div>
-                                        <div className="font-semibold">{property.bedrooms}</div>
-                                    </div>
-                                )}
-                                {property.bathrooms && (
-                                    <div className="text-center">
-                                        <div className="flex items-center justify-center mb-2">
-                                            <Bath className="w-6 h-6 text-primary-600" />
+                                    )}
+                                    {property.bathrooms != null && (
+                                        <div className="flex items-center gap-2">
+                                            <Bath className="h-5 w-5 text-gray-500" />
+                                            <span>{property.bathrooms} phòng tắm</span>
                                         </div>
-                                        <div className="text-sm text-gray-600">Phòng tắm</div>
-                                        <div className="font-semibold">{property.bathrooms}</div>
-                                    </div>
-                                )}
-                                <div className="text-center">
-                                    <div className="flex items-center justify-center mb-2">
-                                        <Eye className="w-6 h-6 text-primary-600" />
-                                    </div>
-                                    <div className="text-sm text-gray-600">Lượt xem</div>
-                                    <div className="font-semibold">{property.view_count}</div>
-                                </div>
-                            </div>
-
-                            {/* Description */}
-                            <div className="mb-6">
-                                <h2 className="text-xl font-bold text-gray-900 mb-3">Mô tả</h2>
-                                <div className="text-gray-700 whitespace-pre-line">
-                                    {property.description || 'Chưa có mô tả'}
-                                </div>
-                            </div>
-
-                            {/* Property Details */}
-                            <div>
-                                <h2 className="text-xl font-bold text-gray-900 mb-3">Thông tin chi tiết</h2>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="flex justify-between py-2 border-b">
-                                        <span className="text-gray-600">Mã BĐS:</span>
-                                        <span className="font-semibold">#{property.property_code}</span>
-                                    </div>
-                                    <div className="flex justify-between py-2 border-b">
-                                        <span className="text-gray-600">Loại hình:</span>
-                                        <span className="font-semibold capitalize">{property.property_type}</span>
-                                    </div>
-                                    <div className="flex justify-between py-2 border-b">
-                                        <span className="text-gray-600">Giao dịch:</span>
-                                        <span className="font-semibold">
-                                            {property.listing_type === 'sale' ? 'Bán' : 'Cho thuê'}
-                                        </span>
-                                    </div>
-                                    <div className="flex justify-between py-2 border-b">
-                                        <span className="text-gray-600">Trạng thái:</span>
-                                        <span className="font-semibold capitalize">{property.status}</span>
+                                    )}
+                                    <div className="flex items-center gap-2">
+                                        <Maximize className="h-5 w-5 text-gray-500" />
+                                        <span>{formatArea(property.area)}</span>
                                     </div>
                                     {property.direction && (
-                                        <div className="flex justify-between py-2 border-b">
-                                            <span className="text-gray-600">Hướng:</span>
-                                            <span className="font-semibold capitalize">{property.direction}</span>
+                                        <div className="flex items-center gap-2">
+                                            <Compass className="h-5 w-5 text-gray-500" />
+                                            <span>Hướng {DIRECTION_LABELS[property.direction]}</span>
+                                        </div>
+                                    )}
+                                    {property.legal_status && (
+                                        <div className="flex items-center gap-2">
+                                            <FileText className="h-5 w-5 text-gray-500" />
+                                            <span>{LEGAL_STATUS_LABELS[property.legal_status]}</span>
                                         </div>
                                     )}
                                     {property.furniture && (
-                                        <div className="flex justify-between py-2 border-b">
-                                            <span className="text-gray-600">Nội thất:</span>
-                                            <span className="font-semibold capitalize">{property.furniture}</span>
+                                        <div className="flex items-center gap-2">
+                                            <Sofa className="h-5 w-5 text-gray-500" />
+                                            <span>{FURNITURE_LABELS[property.furniture]}</span>
                                         </div>
                                     )}
-                                    {property.floors && (
-                                        <div className="flex justify-between py-2 border-b">
-                                            <span className="text-gray-600">Số tầng:</span>
-                                            <span className="font-semibold">{property.floors}</span>
-                                        </div>
-                                    )}
-                                    <div className="flex justify-between py-2 border-b">
-                                        <span className="text-gray-600">Ngày đăng:</span>
-                                        <span className="font-semibold">
-                                            {new Date(property.created_at).toLocaleDateString('vi-VN')}
-                                        </span>
-                                    </div>
                                 </div>
-                            </div>
-                        </div>
+                            </CardContent>
+                        </Card>
+
+                        {/* Description */}
+                        <Card className="mb-6">
+                            <CardHeader>
+                                <CardTitle>Mô tả</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <p className="whitespace-pre-line text-gray-600">
+                                    {property.description || 'Chưa có mô tả'}
+                                </p>
+                            </CardContent>
+                        </Card>
+
+                        {/* Amenities */}
+                        {propertyAmenities.length > 0 && (
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle>Tiện ích</CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="flex flex-wrap gap-2">
+                                        {propertyAmenities.map((amenity) => (
+                                            <Badge key={amenity!.id} variant="outline">
+                                                <span className="mr-1">{amenity!.icon}</span>
+                                                {amenity!.label}
+                                            </Badge>
+                                        ))}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        )}
                     </div>
 
-                    {/* Sidebar */}
-                    <div className="lg:col-span-1">
-                        {/* Contact Card */}
-                        <div className="bg-white rounded-lg shadow-md p-6 sticky top-8">
-                            <h3 className="text-xl font-bold text-gray-900 mb-4">Liên hệ</h3>
+                    {/* MAP SECTION */}
 
-                            {property.user && (
-                                <div className="mb-4 pb-4 border-b">
-                                    <div className="flex items-center mb-2">
-                                        {property.user.avatar_url ? (
-                                            <img
-                                                src={property.user.avatar_url}
-                                                alt={property.user.full_name}
-                                                className="w-12 h-12 rounded-full mr-3"
-                                            />
-                                        ) : (
-                                            <div className="w-12 h-12 rounded-full bg-primary-100 flex items-center justify-center mr-3">
-                                                <span className="text-primary-600 font-semibold">
-                                                    {property.user.full_name.charAt(0)}
-                                                </span>
-                                            </div>
-                                        )}
+                    {/* Sidebar - Contact */}
+                    <div>
+                        <Card className="sticky top-4">
+                            <CardHeader>
+                                <CardTitle>Thông tin liên hệ</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                {property.user && (
+                                    <div className="mb-4 flex items-center gap-3">
+                                        <Avatar className="h-12 w-12">
+                                            <AvatarImage src={property.user.avatar_url} />
+                                            <AvatarFallback>{property.user.full_name.charAt(0)}</AvatarFallback>
+                                        </Avatar>
                                         <div>
-                                            <div className="font-semibold">{property.user.full_name}</div>
-                                            <div className="text-sm text-gray-600 capitalize">{property.user.role}</div>
+                                            <p className="font-semibold">{property.user.full_name}</p>
+                                            <Badge variant="secondary" className="text-xs mt-1">
+                                                {property.user.role === 'admin' ? 'Quản trị viên' : 'Thành viên'}
+                                            </Badge>
                                         </div>
                                     </div>
-                                </div>
-                            )}
-
-                            <div className="space-y-3">
-                                <Button variant="primary" className="w-full">
-                                    <Phone className="w-5 h-5 mr-2" />
-                                    Gọi điện
-                                </Button>
-                                <Button variant="outline" className="w-full">
-                                    <Mail className="w-5 h-5 mr-2" />
-                                    Gửi email
-                                </Button>
-                            </div>
-
-                            {/* Contact Form */}
-                            <div className="mt-6 pt-6 border-t">
-                                <h4 className="font-semibold mb-3">Gửi tin nhắn</h4>
-                                <form className="space-y-3">
-                                    <input
-                                        type="text"
-                                        placeholder="Họ tên"
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                                    />
-                                    <input
-                                        type="tel"
-                                        placeholder="Số điện thoại"
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                                    />
-                                    <textarea
-                                        rows={4}
-                                        placeholder="Nội dung tin nhắn..."
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                                    />
-                                    <Button type="submit" variant="primary" className="w-full">
-                                        Gửi tin nhắn
+                                )}
+                                <div className="space-y-3">
+                                    <Button variant="primary" className="w-full">
+                                        <Phone className="h-4 w-4 mr-2" />
+                                        Gọi điện
                                     </Button>
-                                </form>
-                            </div>
-                        </div>
+                                    <Button
+                                        variant="outline"
+                                        className="w-full"
+                                        onClick={() => {
+                                            if (!user) {
+                                                navigate('/login');
+                                                return;
+                                            }
+                                            navigate(`/messages?to=${property.user_id}&property=${property.id}`);
+                                        }}
+                                    >
+                                        <MessageCircle className="h-4 w-4 mr-2" />
+                                        {user ? 'Gửi tin nhắn' : 'Đăng nhập để nhắn tin'}
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        className="w-full border-orange-300 text-orange-600 hover:bg-orange-50"
+                                        onClick={() => {
+                                            if (!user) { navigate('/login'); return; }
+                                            navigate(`/appointments?property=${property.id}&broker=${property.user_id}`);
+                                        }}
+                                    >
+                                        <CalendarDays className="h-4 w-4 mr-2" />
+                                        {user ? 'Đặt lịch hẹn' : 'Đăng nhập để đặt lịch'}
+                                    </Button>
+                                </div>
+                            </CardContent>
+                        </Card>
                     </div>
                 </div>
+
+                {/* === BẢN ĐỒ TỔNG HỢP === */}
+                {property.latitude && property.longitude && (
+                    <div className="mt-8">
+                        <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+                            <MapPin className="w-5 h-5 text-primary-600" />
+                            Vị trí & Tiện ích xung quanh
+                        </h2>
+                        <Suspense
+                            fallback={
+                                <div className="h-64 bg-gray-100 rounded-xl flex items-center justify-center">
+                                    <div className="text-center">
+                                        <div className="w-8 h-8 border-2 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                                        <p className="text-sm text-gray-500">Đang tải bản đồ...</p>
+                                    </div>
+                                </div>
+                            }
+                        >
+                            <NearbyAmenitiesMap
+                                propertyLat={property.latitude}
+                                propertyLng={property.longitude}
+                                propertyName={property.title}
+                                mainProperty={property}
+                                nearbyProperties={nearbyProperties}
+                            />
+                        </Suspense>
+                    </div>
+                )}
             </div>
         </div>
     );

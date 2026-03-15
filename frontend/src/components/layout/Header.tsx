@@ -1,6 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/authcontexts';
+import { notificationsApi } from '../../api/notifications';
+import { messagesApi } from '../../api/messages';
+
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import {
@@ -30,8 +33,22 @@ import logo from '../../assets/pmax-land-YanJpgblwnTjzgxo.png';
 export const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [unreadMessages, setUnreadMessages] = useState(0);
   const { user, isAuthenticated, logout } = useAuth();
   const navigate = useNavigate();
+
+  // Fetch unread notification count khi đăng nhập
+  useEffect(() => {
+    if (!isAuthenticated) { setUnreadCount(0); setUnreadMessages(0); return; }
+    notificationsApi.getUnreadCount()
+      .then((res) => { if (res.success && res.data) setUnreadCount(res.data.count); })
+      .catch(() => { });
+    messagesApi.getUnreadCount()
+      .then((res) => { if (res.success && res.data) setUnreadMessages(res.data.count); })
+      .catch(() => { });
+  }, [isAuthenticated]);
+
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -142,14 +159,24 @@ export const Header = () => {
                     <Heart className="h-5 w-5" />
                   </Link>
                 </Button>
-                <Button variant="ghost" size="icon" className="hidden md:flex" asChild>
+                <Button variant="ghost" size="icon" className="hidden md:flex relative" asChild>
                   <Link to="/messages">
                     <MessageSquare className="h-5 w-5" />
+                    {unreadMessages > 0 && (
+                      <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+                        {unreadMessages > 9 ? '9+' : unreadMessages}
+                      </span>
+                    )}
                   </Link>
                 </Button>
-                <Button variant="ghost" size="icon" className="hidden md:flex" asChild>
+                <Button variant="ghost" size="icon" className="hidden md:flex relative" asChild>
                   <Link to="/notifications">
                     <Bell className="h-5 w-5" />
+                    {unreadCount > 0 && (
+                      <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+                        {unreadCount > 9 ? '9+' : unreadCount}
+                      </span>
+                    )}
                   </Link>
                 </Button>
 

@@ -60,4 +60,29 @@ export const propertiesApi = {
     });
     return response.data;
   },
+
+  /**
+   * Lấy các BĐS xung quanh một vị trí
+   * @param lat - vĩ độ (nếu có)
+   * @param lng - kinh độ (nếu có)
+   * @param address - địa chỉ (dùng khi không có lat/lng)
+   * @param city - thành phố
+   * @param excludeId - ID BĐS cần loại trừ (BĐS hiện tại)
+   */
+  getNearby: async (
+    lat?: number,
+    lng?: number,
+    address?: string,
+    city?: string,
+    excludeId?: string
+  ): Promise<ApiResponse<Property[]>> => {
+    const params: Record<string, string | number> = { radius: 5, limit: 10 };
+    if (lat !== undefined) params.lat = lat;
+    if (lng !== undefined) params.lng = lng;
+    if (address) params.address = address;
+    if (city) params.city = city;
+    if (excludeId) params.exclude_id = excludeId;
+    const response = await api.get('/properties/nearby', { params });
+    return response.data;
+  },
 };

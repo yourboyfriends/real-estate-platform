@@ -1,28 +1,37 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { propertiesApi } from '../api/properties';
 import { Property } from '../types';
-import { StatusBadge } from '../components/common/StatusBadge';
-import { Button } from '../components/common/Button';
+import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
+import { Card, CardContent } from '../components/ui/card';
+import { Badge } from '../components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, } from '../components/ui/select';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, } from '../components/ui/dropdown-menu';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, } from '../components/ui/alert-dialog';
 import {
-    Home,
-    Plus,
-    Edit,
-    Trash2,
-    Eye,
-    AlertCircle,
-    Clock,
-    CheckCircle,
-    XCircle
+    Plus, Search, MoreVertical, Edit, Eye, Trash2, TrendingUp, Clock, CheckCircle, XCircle, AlertCircle, Home,
 } from 'lucide-react';
 
-export const MyPropertiesPage: React.FC = () => {
+const STATUS_CONFIG = {
+    active: { label: 'Đang hiển thị', color: 'bg-green-500', icon: CheckCircle },
+    pending: { label: 'Chờ duyệt', color: 'bg-yellow-500', icon: Clock },
+    rejected: { label: 'Bị từ chối', color: 'bg-red-500', icon: XCircle },
+    sold: { label: 'Đã bán', color: 'bg-blue-500', icon: CheckCircle },
+    rented: { label: 'Đã cho thuê', color: 'bg-blue-500', icon: CheckCircle },
+};
+
+export const MyPropertiesPage = () => {
     const navigate = useNavigate();
     const [properties, setProperties] = useState<Property[]>([]);
     const [loading, setLoading] = useState(true);
-    const [filter, setFilter] = useState<'all' | 'pending' | 'active' | 'rejected'>('all');
-    const [deleting, setDeleting] = useState<string | null>(null);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [statusFilter, setStatusFilter] = useState('all');
+    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+    const [selectedProperty, setSelectedProperty] = useState<string | null>(null);
+    const [deleting, setDeleting] = useState(false);
 
     useEffect(() => {
         loadProperties();
@@ -43,34 +52,41 @@ export const MyPropertiesPage: React.FC = () => {
         }
     };
 
-    const handleDelete = async (id: string) => {
-        if (!window.confirm('Bạn có chắc muốn xóa tin này?')) return;
+    const handleDelete = (id: string) => {
+        setSelectedProperty(id);
+        setDeleteDialogOpen(true);
+    };
+
+    const confirmDelete = async () => {
+        if (!selectedProperty) return;
 
         try {
-            setDeleting(id);
-            await propertiesApi.delete(id);
+            setDeleting(true);
+            await propertiesApi.delete(selectedProperty);
             toast.success('Đã xóa tin đăng');
             loadProperties();
         } catch (error: any) {
             console.error('Failed to delete property:', error);
             toast.error('Không thể xóa tin đăng');
         } finally {
-            setDeleting(null);
+            setDeleting(false);
+            setDeleteDialogOpen(false);
+            setSelectedProperty(null);
         }
     };
 
-    // Calculate statistics
+    const filteredProperties = properties.filter((property) => {
+        const matchesSearch = property.title.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesStatus = statusFilter === 'all' || property.status === statusFilter;
+        return matchesSearch && matchesStatus;
+    });
+
     const stats = {
         total: properties.length,
-        pending: properties.filter(p => p.status === 'pending').length,
-        active: properties.filter(p => p.status === 'active').length,
-        rejected: properties.filter(p => p.status === 'rejected').length,
+        active: properties.filter((p) => p.status === 'active').length,
+        pending: properties.filter((p) => p.status === 'pending').length,
+        rejected: properties.filter((p) => p.status === 'rejected').length,
     };
-
-    // Filter properties
-    const filteredProperties = filter === 'all'
-        ? properties
-        : properties.filter(p => p.status === filter);
 
     const formatPrice = (price: number) => {
         return new Intl.NumberFormat('vi-VN', {
@@ -79,258 +95,312 @@ export const MyPropertiesPage: React.FC = () => {
         }).format(price);
     };
 
-    const formatDate = (dateString: string) => {
-        return new Date(dateString).toLocaleDateString('vi-VN');
-    };
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-gray-50 py-12">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div className="text-center">
+                        <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+                        <p className="mt-4 text-muted-foreground">Đang tải...</p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
-        <div className="min-h-screen bg-gray-50 py-12">
+        <div className="min-h-screen bg-gray-50 py-8">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 {/* Header */}
-                <div className="mb-8 flex justify-between items-center">
+                <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                        <h1 className="text-3xl font-bold text-gray-900 mb-2">Tin đăng của tôi</h1>
-                        <p className="text-gray-600">Quản lý tất cả tin đăng bất động sản của bạn</p>
+                        <h1 className="text-3xl font-bold">Quản lý tin đăng</h1>
+                        <p className="text-muted-foreground">Quản lý tất cả tin đăng bất động sản của bạn</p>
                     </div>
-                    <Button
-                        variant="primary"
-                        onClick={() => navigate('/properties/create')}
-                        className="flex items-center gap-2"
-                    >
-                        <Plus className="w-5 h-5" />
+                    <Button onClick={() => navigate('/properties/create')} className="gap-2">
+                        <Plus className="h-4 w-4" />
                         Đăng tin mới
                     </Button>
                 </div>
 
-                {/* Statistics Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                    <div className="bg-white rounded-lg shadow-md p-6">
-                        <div className="flex items-center justify-between">
+                {/* Stats */}
+                <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    <Card>
+                        <CardContent className="flex items-center gap-4 p-4">
+                            <div className="rounded-full bg-primary/10 p-3">
+                                <TrendingUp className="h-5 w-5 text-primary" />
+                            </div>
                             <div>
-                                <p className="text-sm text-gray-600 mb-1">Tổng số tin</p>
-                                <p className="text-3xl font-bold text-gray-900">{stats.total}</p>
+                                <p className="text-sm text-muted-foreground">Tổng tin đăng</p>
+                                <p className="text-2xl font-bold">{stats.total}</p>
                             </div>
-                            <div className="bg-blue-100 p-3 rounded-full">
-                                <Home className="w-6 h-6 text-blue-600" />
+                        </CardContent>
+                    </Card>
+                    <Card>
+                        <CardContent className="flex items-center gap-4 p-4">
+                            <div className="rounded-full bg-green-500/10 p-3">
+                                <CheckCircle className="h-5 w-5 text-green-500" />
                             </div>
-                        </div>
-                    </div>
-
-                    <div className="bg-white rounded-lg shadow-md p-6">
-                        <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-sm text-gray-600 mb-1">Chờ duyệt</p>
-                                <p className="text-3xl font-bold text-yellow-600">{stats.pending}</p>
+                                <p className="text-sm text-muted-foreground">Đang hiển thị</p>
+                                <p className="text-2xl font-bold">{stats.active}</p>
                             </div>
-                            <div className="bg-yellow-100 p-3 rounded-full">
-                                <Clock className="w-6 h-6 text-yellow-600" />
+                        </CardContent>
+                    </Card>
+                    <Card>
+                        <CardContent className="flex items-center gap-4 p-4">
+                            <div className="rounded-full bg-yellow-500/10 p-3">
+                                <Clock className="h-5 w-5 text-yellow-500" />
                             </div>
-                        </div>
-                    </div>
-
-                    <div className="bg-white rounded-lg shadow-md p-6">
-                        <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-sm text-gray-600 mb-1">Đang hiển thị</p>
-                                <p className="text-3xl font-bold text-green-600">{stats.active}</p>
+                                <p className="text-sm text-muted-foreground">Chờ duyệt</p>
+                                <p className="text-2xl font-bold">{stats.pending}</p>
                             </div>
-                            <div className="bg-green-100 p-3 rounded-full">
-                                <CheckCircle className="w-6 h-6 text-green-600" />
+                        </CardContent>
+                    </Card>
+                    <Card>
+                        <CardContent className="flex items-center gap-4 p-4">
+                            <div className="rounded-full bg-red-500/10 p-3">
+                                <XCircle className="h-5 w-5 text-red-500" />
                             </div>
-                        </div>
-                    </div>
-
-                    <div className="bg-white rounded-lg shadow-md p-6">
-                        <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-sm text-gray-600 mb-1">Bị từ chối</p>
-                                <p className="text-3xl font-bold text-red-600">{stats.rejected}</p>
+                                <p className="text-sm text-muted-foreground">Bị từ chối</p>
+                                <p className="text-2xl font-bold">{stats.rejected}</p>
                             </div>
-                            <div className="bg-red-100 p-3 rounded-full">
-                                <XCircle className="w-6 h-6 text-red-600" />
-                            </div>
-                        </div>
-                    </div>
+                        </CardContent>
+                    </Card>
                 </div>
 
-                {/* Filter Tabs */}
-                <div className="bg-white rounded-lg shadow-md mb-6">
-                    <div className="flex border-b">
-                        <button
-                            onClick={() => setFilter('all')}
-                            className={`px-6 py-4 font-medium transition-colors ${filter === 'all'
-                                ? 'border-b-2 border-primary-600 text-primary-600'
-                                : 'text-gray-600 hover:text-gray-900'
-                                }`}
-                        >
-                            Tất cả ({stats.total})
-                        </button>
-                        <button
-                            onClick={() => setFilter('pending')}
-                            className={`px-6 py-4 font-medium transition-colors ${filter === 'pending'
-                                ? 'border-b-2 border-primary-600 text-primary-600'
-                                : 'text-gray-600 hover:text-gray-900'
-                                }`}
-                        >
-                            Chờ duyệt ({stats.pending})
-                        </button>
-                        <button
-                            onClick={() => setFilter('active')}
-                            className={`px-6 py-4 font-medium transition-colors ${filter === 'active'
-                                ? 'border-b-2 border-primary-600 text-primary-600'
-                                : 'text-gray-600 hover:text-gray-900'
-                                }`}
-                        >
-                            Đang hiển thị ({stats.active})
-                        </button>
-                        <button
-                            onClick={() => setFilter('rejected')}
-                            className={`px-6 py-4 font-medium transition-colors ${filter === 'rejected'
-                                ? 'border-b-2 border-primary-600 text-primary-600'
-                                : 'text-gray-600 hover:text-gray-900'
-                                }`}
-                        >
-                            Bị từ chối ({stats.rejected})
-                        </button>
+                {/* Filters */}
+                <div className="mb-6 flex flex-col gap-4 sm:flex-row">
+                    <div className="relative flex-1">
+                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input
+                            placeholder="Tìm kiếm theo tiêu đề..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="pl-9"
+                        />
                     </div>
+                    <Select value={statusFilter} onValueChange={setStatusFilter}>
+                        <SelectTrigger className="w-full sm:w-[180px]">
+                            <SelectValue placeholder="Trạng thái" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">Tất cả trạng thái</SelectItem>
+                            <SelectItem value="active">Đang hiển thị</SelectItem>
+                            <SelectItem value="pending">Chờ duyệt</SelectItem>
+                            <SelectItem value="rejected">Bị từ chối</SelectItem>
+                        </SelectContent>
+                    </Select>
                 </div>
 
-                {/* Properties List */}
-                {loading ? (
-                    <div className="text-center py-12">
-                        <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
-                        <p className="mt-4 text-gray-600">Đang tải...</p>
-                    </div>
-                ) : filteredProperties.length === 0 ? (
-                    <div className="bg-white rounded-lg shadow-md p-12 text-center">
-                        <Home className="w-16 h-16 mx-auto text-gray-400 mb-4" />
-                        <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                            {filter === 'all' ? 'Chưa có tin đăng nào' : `Không có tin ${filter === 'pending' ? 'chờ duyệt' : filter === 'active' ? 'đang hiển thị' : 'bị từ chối'}`}
-                        </h3>
-                        <p className="text-gray-600 mb-6">
-                            {filter === 'all' ? 'Bắt đầu đăng tin bất động sản đầu tiên của bạn' : 'Thử chọn bộ lọc khác'}
-                        </p>
-                        {filter === 'all' && (
-                            <Button
-                                variant="primary"
-                                onClick={() => navigate('/properties/create')}
-                                className="inline-flex items-center gap-2"
-                            >
-                                <Plus className="w-5 h-5" />
-                                Đăng tin ngay
-                            </Button>
+                {/* Tabs */}
+                <Tabs defaultValue="all" className="w-full">
+                    <TabsList className="mb-4">
+                        <TabsTrigger value="all">Tất cả ({stats.total})</TabsTrigger>
+                        <TabsTrigger value="sale">
+                            Bán ({properties.filter((p) => p.listing_type === 'sale').length})
+                        </TabsTrigger>
+                        <TabsTrigger value="rent">
+                            Cho thuê ({properties.filter((p) => p.listing_type === 'rent').length})
+                        </TabsTrigger>
+                    </TabsList>
+
+                    <TabsContent value="all" className="space-y-4">
+                        {filteredProperties.length > 0 ? (
+                            filteredProperties.map((property) => (
+                                <PropertyListItem
+                                    key={property.id}
+                                    property={property}
+                                    onEdit={() => navigate(`/properties/${property.id}/edit`)}
+                                    onView={() => navigate(`/properties/${property.id}`)}
+                                    onDelete={() => handleDelete(property.id)}
+                                    formatPrice={formatPrice}
+                                />
+                            ))
+                        ) : (
+                            <Card>
+                                <CardContent className="flex flex-col items-center justify-center py-12">
+                                    <AlertCircle className="mb-4 h-12 w-12 text-muted-foreground" />
+                                    <p className="text-muted-foreground">Không tìm thấy tin đăng nào</p>
+                                </CardContent>
+                            </Card>
                         )}
+                    </TabsContent>
+
+                    <TabsContent value="sale" className="space-y-4">
+                        {filteredProperties
+                            .filter((p) => p.listing_type === 'sale')
+                            .map((property) => (
+                                <PropertyListItem
+                                    key={property.id}
+                                    property={property}
+                                    onEdit={() => navigate(`/properties/${property.id}/edit`)}
+                                    onView={() => navigate(`/properties/${property.id}`)}
+                                    onDelete={() => handleDelete(property.id)}
+                                    formatPrice={formatPrice}
+                                />
+                            ))}
+                    </TabsContent>
+
+                    <TabsContent value="rent" className="space-y-4">
+                        {filteredProperties
+                            .filter((p) => p.listing_type === 'rent')
+                            .map((property) => (
+                                <PropertyListItem
+                                    key={property.id}
+                                    property={property}
+                                    onEdit={() => navigate(`/properties/${property.id}/edit`)}
+                                    onView={() => navigate(`/properties/${property.id}`)}
+                                    onDelete={() => handleDelete(property.id)}
+                                    formatPrice={formatPrice}
+                                />
+                            ))}
+                    </TabsContent>
+                </Tabs>
+
+                {/* Delete Dialog */}
+                <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>Xác nhận xóa tin đăng</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                Bạn có chắc chắn muốn xóa tin đăng này? Hành động này không thể hoàn tác.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel disabled={deleting}>Hủy</AlertDialogCancel>
+                            <AlertDialogAction
+                                onClick={confirmDelete}
+                                disabled={deleting}
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                                {deleting ? 'Đang xóa...' : 'Xóa'}
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+            </div>
+        </div>
+    );
+};
+
+interface PropertyListItemProps {
+    property: Property;
+    onEdit: () => void;
+    onView: () => void;
+    onDelete: () => void;
+    formatPrice: (price: number) => string;
+}
+
+const PropertyListItem = ({ property, onEdit, onView, onDelete, formatPrice }: PropertyListItemProps) => {
+    const statusConfig = STATUS_CONFIG[property.status as keyof typeof STATUS_CONFIG];
+    const StatusIcon = statusConfig?.icon || AlertCircle;
+    const primaryImage = property.images?.find(img => img.is_primary) || property.images?.[0];
+
+    return (
+        <Card className="overflow-hidden">
+            <CardContent className="p-0">
+                <div className="flex flex-col sm:flex-row">
+                    {/* Image */}
+                    <div className="relative h-48 w-full sm:h-auto sm:w-48 flex-shrink-0">
+                        {primaryImage ? (
+                            <img
+                                src={primaryImage.url}
+                                alt={property.title}
+                                className="h-full w-full object-cover"
+                            />
+                        ) : (
+                            <div className="flex h-full w-full items-center justify-center bg-muted">
+                                <Home className="h-12 w-12 text-muted-foreground" />
+                            </div>
+                        )}
+                        <Badge
+                            className={`absolute left-2 top-2 ${property.listing_type === 'sale' ? 'bg-primary' : 'bg-orange-500'
+                                }`}
+                        >
+                            {property.listing_type === 'sale' ? 'Bán' : 'Cho thuê'}
+                        </Badge>
                     </div>
-                ) : (
-                    <div className="space-y-4">
-                        {filteredProperties.map(property => (
-                            <div key={property.id} className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow">
-                                <div className="flex flex-col md:flex-row">
-                                    {/* Image */}
-                                    <div className="md:w-64 h-48 md:h-auto bg-gray-200 flex-shrink-0">
-                                        {property.images && property.images.length > 0 ? (
-                                            <img
-                                                src={property.images[0].image_url}
-                                                alt={property.title}
-                                                className="w-full h-full object-cover"
-                                            />
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center">
-                                                <Home className="w-12 h-12 text-gray-400" />
-                                            </div>
-                                        )}
-                                    </div>
 
-                                    {/* Content */}
-                                    <div className="flex-1 p-6">
-                                        <div className="flex justify-between items-start mb-3">
-                                            <div className="flex-1">
-                                                <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                                                    {property.title}
-                                                </h3>
-                                                <StatusBadge status={property.status} />
-                                            </div>
-                                            <div className="text-right ml-4">
-                                                <p className="text-2xl font-bold text-primary-600">
-                                                    {formatPrice(property.price)}
-                                                </p>
-                                                <p className="text-sm text-gray-600">
-                                                    {property.area} m²
-                                                </p>
-                                            </div>
-                                        </div>
+                    {/* Content */}
+                    <div className="flex flex-1 flex-col justify-between p-4">
+                        <div>
+                            <div className="mb-2 flex items-start justify-between gap-2">
+                                <Link
+                                    to={`/properties/${property.id}`}
+                                    className="text-lg font-semibold hover:text-primary line-clamp-1"
+                                >
+                                    {property.title}
+                                </Link>
+                                <Badge variant="outline" className="flex items-center gap-1 whitespace-nowrap">
+                                    <StatusIcon className="h-3 w-3" />
+                                    {statusConfig?.label}
+                                </Badge>
+                            </div>
+                            <p className="text-sm text-muted-foreground mb-2">{property.address}, {property.city}</p>
+                            <div className="flex flex-wrap gap-4 text-sm">
+                                <span className="font-semibold text-primary">
+                                    {formatPrice(property.price)}
+                                    {property.listing_type === 'rent' && '/tháng'}
+                                </span>
+                                <span>{property.area} m²</span>
+                            </div>
 
-                                        <p className="text-gray-600 mb-3 line-clamp-2">
-                                            {property.description}
-                                        </p>
-
-                                        <div className="flex items-center gap-4 text-sm text-gray-600 mb-4">
-                                            <span>📍 {property.city}</span>
-                                            <span>📅 {formatDate(property.created_at)}</span>
-                                            {property.views !== undefined && (
-                                                <span className="flex items-center gap-1">
-                                                    <Eye className="w-4 h-4" />
-                                                    {property.views} lượt xem
-                                                </span>
-                                            )}
-                                        </div>
-
-                                        {/* Rejection Reason */}
-                                        {property.status === 'rejected' && property.rejection_reason && (
-                                            <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
-                                                <div className="flex items-start gap-2">
-                                                    <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-                                                    <div>
-                                                        <p className="text-sm font-medium text-red-800 mb-1">
-                                                            Lý do từ chối:
-                                                        </p>
-                                                        <p className="text-sm text-red-700">
-                                                            {property.rejection_reason}
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        {/* Actions */}
-                                        <div className="flex gap-2">
-                                            <Link to={`/properties/${property.id}`}>
-                                                <Button variant="outline" size="sm" className="flex items-center gap-2">
-                                                    <Eye className="w-4 h-4" />
-                                                    Xem
-                                                </Button>
-                                            </Link>
-
-                                            {(property.status === 'pending' || property.status === 'rejected') && (
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={() => navigate(`/properties/${property.id}/edit`)}
-                                                    className="flex items-center gap-2"
-                                                >
-                                                    <Edit className="w-4 h-4" />
-                                                    Sửa
-                                                </Button>
-                                            )}
-
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={() => handleDelete(property.id)}
-                                                disabled={deleting === property.id}
-                                                className="flex items-center gap-2 text-red-600 hover:bg-red-50"
-                                            >
-                                                <Trash2 className="w-4 h-4" />
-                                                {deleting === property.id ? 'Đang xóa...' : 'Xóa'}
-                                            </Button>
+                            {/* Rejection Reason */}
+                            {property.status === 'rejected' && property.rejection_reason && (
+                                <div className="mt-3 bg-red-50 border border-red-200 rounded-lg p-3">
+                                    <div className="flex items-start gap-2">
+                                        <AlertCircle className="h-4 w-4 text-red-600 flex-shrink-0 mt-0.5" />
+                                        <div>
+                                            <p className="text-xs font-medium text-red-800 mb-1">
+                                                Lý do từ chối:
+                                            </p>
+                                            <p className="text-xs text-red-700">
+                                                {property.rejection_reason}
+                                            </p>
                                         </div>
                                     </div>
                                 </div>
+                            )}
+                        </div>
+
+                        <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
+                            <div className="flex gap-4 text-sm text-muted-foreground">
+                                <span className="flex items-center gap-1">
+                                    <Eye className="h-4 w-4" />
+                                    {property.view_count || 0} lượt xem
+                                </span>
                             </div>
-                        ))}
+
+                            <div className="flex items-center gap-2">
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button variant="ghost" size="icon">
+                                            <MoreVertical className="h-4 w-4" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                        <DropdownMenuItem onClick={onView}>
+                                            <Eye className="mr-2 h-4 w-4" />
+                                            Xem tin
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={onEdit}>
+                                            <Edit className="mr-2 h-4 w-4" />
+                                            Sửa tin
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={onDelete} className="text-destructive">
+                                            <Trash2 className="mr-2 h-4 w-4" />
+                                            Xóa tin
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                            </div>
+                        </div>
                     </div>
-                )}
-            </div>
-        </div>
+                </div>
+            </CardContent>
+        </Card>
     );
 };

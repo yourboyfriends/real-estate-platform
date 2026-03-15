@@ -1,68 +1,59 @@
 import { Link } from 'react-router-dom';
-import { Building2, Home, Castle, TreePine, Briefcase, Store, DoorOpen, Warehouse } from 'lucide-react';
 
 const categories = [
   {
     slug: 'apartment',
     name: 'Căn hộ/Chung cư',
-    icon: Building2,
     count: '25,000+',
-    color: 'bg-blue-500',
+    image: '/images/categories/apartment.png',
   },
   {
     slug: 'house',
     name: 'Nhà riêng',
-    icon: Home,
     count: '18,000+',
-    color: 'bg-green-500',
+    image: '/images/categories/house.png',
   },
   {
     slug: 'villa',
     name: 'Biệt thự',
-    icon: Castle,
     count: '5,000+',
-    color: 'bg-purple-500',
+    image: 'https://images.unsplash.com/photo-1613490493576-7fde63acd811?w=400&h=300&fit=crop',
   },
   {
     slug: 'land',
     name: 'Đất nền',
-    icon: TreePine,
     count: '30,000+',
-    color: 'bg-amber-500',
+    image: 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=400&h=300&fit=crop',
   },
   {
     slug: 'office',
     name: 'Văn phòng',
-    icon: Briefcase,
     count: '8,000+',
-    color: 'bg-cyan-500',
+    image: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=400&h=300&fit=crop',
   },
   {
-    slug: 'shop',
+    slug: 'shophouse',
     name: 'Mặt bằng kinh doanh',
-    icon: Store,
     count: '6,000+',
-    color: 'bg-pink-500',
+    image: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400&h=300&fit=crop',
   },
   {
     slug: 'room',
     name: 'Phòng trọ',
-    icon: DoorOpen,
     count: '12,000+',
-    color: 'bg-indigo-500',
+    image: 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=400&h=300&fit=crop',
   },
   {
     slug: 'warehouse',
     name: 'Nhà xưởng/Kho',
-    icon: Warehouse,
     count: '3,000+',
-    color: 'bg-orange-500',
+    image: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=400&h=300&fit=crop',
   },
 ];
 
 const CategorySection = () => {
   return (
-    <section className="py-12 lg:py-16">
+    <section className="py-12 lg:py-16 bg-gray-50">
       <div className="container mx-auto px-4">
         <div className="mb-8 text-center">
           <h2 className="mb-2 text-2xl font-bold text-foreground sm:text-3xl">
@@ -78,19 +69,31 @@ const CategorySection = () => {
             <Link
               key={category.slug}
               to={`/properties?property_type=${category.slug}`}
-              className="group rounded-xl border bg-card p-4 text-center transition-all hover:border-primary hover:shadow-md lg:p-6"
+              className="group relative overflow-hidden rounded-xl shadow-md transition-all hover:shadow-xl"
             >
-              <div
-                className={`mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full ${category.color} text-white transition-transform group-hover:scale-110 lg:h-14 lg:w-14`}
-              >
-                <category.icon className="h-6 w-6 lg:h-7 lg:w-7" />
+              {/* Image Background */}
+              <div className="aspect-[4/3] overflow-hidden">
+                <img
+                  src={category.image}
+                  alt={category.name}
+                  className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-110"
+                />
+                {/* Overlay */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent" />
               </div>
-              <h3 className="mb-1 text-sm font-semibold text-foreground lg:text-base">
-                {category.name}
-              </h3>
-              <p className="text-xs text-muted-foreground lg:text-sm">
-                {category.count} tin đăng
-              </p>
+
+              {/* Content */}
+              <div className="absolute bottom-0 left-0 right-0 p-4 text-white">
+                <h3 className="mb-1 text-sm font-semibold lg:text-base drop-shadow-lg">
+                  {category.name}
+                </h3>
+                <p className="text-xs opacity-90 lg:text-sm">
+                  {category.count} tin đăng
+                </p>
+              </div>
+
+              {/* Hover Effect */}
+              <div className="absolute inset-0 border-2 border-transparent transition-colors group-hover:border-primary rounded-xl" />
             </Link>
           ))}
         </div>

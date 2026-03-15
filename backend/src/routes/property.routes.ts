@@ -47,6 +47,13 @@ router.get('/stats', propertyController.getPropertyStats);
 router.get('/code/:code', propertyController.getPropertyByCode);
 
 /**
+ * @route   GET /api/properties/nearby
+ * @desc    Get properties near a lat/lng location
+ * @access  Public
+ */
+router.get('/nearby', propertyController.getNearbyProperties);
+
+/**
  * @route   GET /api/properties/user/:userId
  * @desc    Get properties by user
  * @access  Public
@@ -79,7 +86,8 @@ router.post('/', requireBrokerOrAdmin, propertyController.createProperty);
  * @desc    Add images to property
  * @access  Private
  */
-router.post('/:id/images', propertyController.addPropertyImages);
+const { upload } = require('../config/cloudinary');
+router.post('/:id/images', upload.array('images', 10), propertyController.addPropertyImages);
 
 /**
  * @route   PUT /api/properties/:id/approve

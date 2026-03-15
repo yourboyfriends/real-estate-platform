@@ -1,34 +1,18 @@
 import { Router } from 'express';
-import authController from '../controllers/auth.controller';
+import authController, { avatarUpload } from '../controllers/auth.controller';
 
 const router = Router();
 
-/**
- * @route   POST /api/auth/register
- * @desc    Register new user
- * @access  Public
- */
 router.post('/register', authController.register);
-
-/**
- * @route   POST /api/auth/login
- * @desc    Login user
- * @access  Public
- */
 router.post('/login', authController.login);
-
-/**
- * @route   GET /api/auth/me
- * @desc    Get current user
- * @access  Private
- */
 router.get('/me', authController.getMe);
+router.put('/profile', authController.updateProfile);
 
 /**
- * @route   PUT /api/auth/profile
- * @desc    Update user profile
+ * @route   POST /api/auth/avatar
+ * @desc    Upload avatar to Supabase Storage
  * @access  Private
  */
-router.put('/profile', authController.updateProfile);
+router.post('/avatar', avatarUpload.single('avatar'), authController.uploadAvatar);
 
 export default router;

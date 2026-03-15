@@ -2,6 +2,8 @@ import { supabase } from '../config/database';
 import { Property, PropertyFilters, PaginationResponse } from '../types';
 import { AppError } from '../utils/errorHandler';
 import { PAGINATION } from '../config/constants';
+import notificationService from './notification.service';
+
 
 export class PropertyService {
   /**
@@ -11,7 +13,7 @@ export class PropertyService {
     const {
       page = PAGINATION.DEFAULT_PAGE,
       limit = PAGINATION.DEFAULT_LIMIT,
-      sort = 'created_at',
+      sort = 'created_at_desc',
       listing_type,
       property_type,
       city,
@@ -29,7 +31,7 @@ export class PropertyService {
       .from('properties')
       .select(`
         *,
-        user:users(id, full_name, phone, email, avatar_url, company_name),
+        user:user_id(id, full_name, phone, email, avatar_url, company_name),
         images:property_images(id, url, thumbnail_url, is_primary, order_index),
         category:categories(id, name, slug, icon)
       `, { count: 'exact' })
@@ -114,7 +116,7 @@ export class PropertyService {
       .from('properties')
       .select(`
         *,
-        user:users(id, full_name, phone, email, avatar_url, company_name, bio),
+        user:user_id(id, full_name, phone, email, avatar_url, company_name, bio),
         images:property_images(id, url, thumbnail_url, is_primary, order_index),
         category:categories(id, name, slug, icon)
       `)
@@ -142,7 +144,7 @@ export class PropertyService {
       .from('properties')
       .select(`
         *,
-        user:users(id, full_name, phone, email, avatar_url, company_name),
+        user:user_id(id, full_name, phone, email, avatar_url, company_name),
         images:property_images(*),
         category:categories(*)
       `)
@@ -167,7 +169,7 @@ export class PropertyService {
       })
       .select(`
         *,
-        user:users(id, full_name, phone, email),
+        user:user_id(id, full_name, phone, email),
         category:categories(id, name, slug)
       `)
       .single();
@@ -202,7 +204,7 @@ export class PropertyService {
       .eq('id', id)
       .select(`
         *,
-        user:users(id, full_name, phone, email),
+        user:user_id(id, full_name, phone, email),
         images:property_images(*),
         category:categories(*)
       `)
@@ -305,7 +307,7 @@ export class PropertyService {
       .from('properties')
       .select(`
         *,
-        user:users(id, full_name, phone, email, company_name),
+        user:user_id(id, full_name, phone, email, company_name),
         images:property_images(id, url, thumbnail_url, is_primary),
         category:categories(id, name, slug)
       `, { count: 'exact' })
@@ -343,7 +345,7 @@ export class PropertyService {
     // Check if property exists and is pending
     const { data: property } = await supabase
       .from('properties')
-      .select('status')
+      .select('status, user_id, title')
       .eq('id', id)
       .single();
 
@@ -365,7 +367,7 @@ export class PropertyService {
       .eq('id', id)
       .select(`
         *,
-        user:users(id, full_name, phone, email),
+        user:user_id(id, full_name, phone, email),
         images:property_images(id, url, thumbnail_url, is_primary),
         category:categories(id, name, slug)
       `)
@@ -373,17 +375,21 @@ export class PropertyService {
 
     if (error) throw new AppError(error.message, 400);
 
+    // Gửi thông báo cho broker (fire-and-forget)
+    notificationService.notifyPropertyApproved(id, property.title, property.user_id);
+
     return data as Property;
   }
+
 
   /**
    * Reject property (Admin only)
    */
   async rejectProperty(id: string, adminId: string, reason?: string) {
-    // Check if property exists and is pending
+    // Check if property exists, is pending, and get broker info
     const { data: property } = await supabase
       .from('properties')
-      .select('status')
+      .select('status, user_id, title')
       .eq('id', id)
       .single();
 
@@ -396,10 +402,7 @@ export class PropertyService {
     }
 
     // Update property status to rejected
-    const updateData: any = {
-      status: 'rejected'
-    };
-
+    const updateData: any = { status: 'rejected' };
     if (reason) {
       updateData.rejection_reason = reason;
     }
@@ -410,7 +413,7 @@ export class PropertyService {
       .eq('id', id)
       .select(`
         *,
-        user:users(id, full_name, phone, email),
+        user:user_id(id, full_name, phone, email),
         images:property_images(id, url, thumbnail_url, is_primary),
         category:categories(id, name, slug)
       `)
@@ -418,8 +421,12 @@ export class PropertyService {
 
     if (error) throw new AppError(error.message, 400);
 
+    // Gửi thông báo từ chối cho broker (fire-and-forget, kèm lý do)
+    notificationService.notifyPropertyRejected(id, property.title, property.user_id, reason);
+
     return data as Property;
   }
+
 
   /**
    * Get featured properties
@@ -429,7 +436,7 @@ export class PropertyService {
       .from('properties')
       .select(`
         *,
-        user:users(id, full_name, phone, company_name),
+        user:user_id(id, full_name, phone, company_name),
         images:property_images(id, url, thumbnail_url, is_primary),
         category:categories(id, name, slug, icon)
       `)
@@ -460,7 +467,7 @@ export class PropertyService {
       .from('properties')
       .select(`
         *,
-        user:users(id, full_name, phone),
+        user:user_id(id, full_name, phone),
         images:property_images(id, url, thumbnail_url, is_primary),
         category:categories(id, name, slug)
       `)
@@ -537,6 +544,72 @@ export class PropertyService {
     };
 
     return stats;
+  }
+
+  /**
+   * Get nearby properties using Haversine formula
+   * No PostGIS needed – works with plain latitude/longitude columns
+   */
+  async getNearbyProperties(options: {
+    lat?: number;
+    lng?: number;
+    city?: string;
+    radiusKm?: number;
+    limit?: number;
+    excludeId?: string;
+  }) {
+    const { lat, lng, city, radiusKm = 5, limit = 10, excludeId } = options;
+
+    // Build base query
+    let query = supabase
+      .from('properties')
+      .select(`
+        *,
+        user:user_id(id, full_name, phone, avatar_url),
+        images:property_images(id, url, thumbnail_url, is_primary),
+        category:categories(id, name, slug)
+      `)
+      .eq('status', 'active')
+      .not('latitude', 'is', null)
+      .not('longitude', 'is', null);
+
+    if (excludeId) {
+      query = query.neq('id', excludeId);
+    }
+
+    // If no lat/lng, fall back to city-based proximity
+    if (!lat || !lng) {
+      if (city) {
+        query = query.ilike('city', `%${city}%`);
+      }
+      const { data, error } = await query.limit(limit);
+      if (error) throw new AppError(error.message, 400);
+      return data as Property[];
+    }
+
+    // Fetch a broader pool then filter by Haversine distance in JS
+    // (Supabase doesn't support PostGIS here, so we over-fetch and filter)
+    const { data, error } = await query.limit(200);
+    if (error) throw new AppError(error.message, 400);
+
+    // Haversine formula
+    const toRad = (deg: number) => (deg * Math.PI) / 180;
+    const haversine = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
+      const R = 6371; // Earth radius in km
+      const dLat = toRad(lat2 - lat1);
+      const dLng = toRad(lng2 - lng1);
+      const a =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    };
+
+    return (data as Property[])
+      .filter(p => {
+        if (!p.latitude || !p.longitude) return false;
+        return haversine(lat, lng, p.latitude, p.longitude) <= radiusKm;
+      })
+      .slice(0, limit);
   }
 }
 

@@ -202,14 +202,20 @@ export class PropertyController {
    */
   addPropertyImages = asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
-    const {images} = req.body;
+    const files = req.files as Express.Multer.File[];
 
-    if (!images || !Array.isArray(images) || images.length === 0) {
+    if (!files || files.length === 0) {
       return res.status(400).json({
         success: false,
-        message: 'Images array is required'
+        message: 'At least one image is required'
       } as ApiResponse);
     }
+
+    // Extract URLs from Cloudinary uploaded files
+    const images = files.map((file: any, index) => ({
+      url: file.path,  // Cloudinary URL
+      is_primary: index === 0
+    }));
 
     const result = await propertyService.addPropertyImages(id, images);
 
@@ -345,6 +351,33 @@ export class PropertyController {
     res.json({
       success: true,
       data: stats
+    } as ApiResponse);
+  });
+
+  /**
+   * GET /api/properties/nearby
+   * Get properties near a location (lat/lng + radius in km)
+   */
+  getNearbyProperties = asyncHandler(async (req: Request, res: Response) => {
+    const lat = req.query.lat ? parseFloat(req.query.lat as string) : undefined;
+    const lng = req.query.lng ? parseFloat(req.query.lng as string) : undefined;
+    const city = req.query.city as string | undefined;
+    const radius = req.query.radius ? parseFloat(req.query.radius as string) : 5;
+    const limit = req.query.limit ? parseInt(req.query.limit as string) : 10;
+    const excludeId = req.query.exclude_id as string | undefined;
+
+    const properties = await propertyService.getNearbyProperties({
+      lat,
+      lng,
+      city,
+      radiusKm: radius,
+      limit,
+      excludeId,
+    });
+
+    res.json({
+      success: true,
+      data: properties,
     } as ApiResponse);
   });
 }
